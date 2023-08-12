@@ -1,5 +1,7 @@
 import React from "react";
 import Phaser from "phaser";
+import TutorialScene from "./tutorial/tutorialScene.js";
+import PVPMatchmakingScene from "./pvpCombat/combatScene.js";
 
 class PhaserGameScene extends Phaser.Scene {
   constructor(config, parent) {
@@ -9,20 +11,27 @@ class PhaserGameScene extends Phaser.Scene {
 
   preload() {
     //this.load.image("player", "assets/player.png");
+
+    this.load.image("menubackground", "artwork/menubackground.jpg");
   }
 
   create() {
+    this.add.image(0, 0, "menubackground").setOrigin(0, 0);
+
     const menuItems = [
       "Tutorial",
-      "Start PVP Matchmaking",
-      "Start PVE Game",
-      "Change Your Team",
-      "Claim Rewards",
+      "Create New Team",
+      "Manage Team",
+      "PVP Matchmaking",
+      "PVE Matchmaking",
+      "Travel through ZK-Portal",
+      "Claim Rewards from ZK-Portal",
     ];
 
     const textStyle = {
-      font: "16px Courier",
-      fill: "#ffffff",
+      fontFamily: "PixelArtFont",
+      fontSize: "48px",
+      color: "#ffffff",
       align: "center",
     };
 
@@ -30,9 +39,17 @@ class PhaserGameScene extends Phaser.Scene {
 
     menuItems.forEach((item, index) => {
       const menuItem = this.add
-        .text(400, 100 + index * 50, item, textStyle)
+        .text(300, 150 + index * 69, item, textStyle)
         .setInteractive()
-        .on("pointerdown", () => this.parent.menuItemClicked(item));
+        .on("pointerdown", () => this.parent.menuItemClicked(item))
+        .on("pointerover", function () {
+          this.setFill("#ff8800"); // Change to the color you want on hover, e.g., orange
+        })
+        .on("pointerout", function () {
+          this.setFill("#ffffff"); // Revert to original color when hover ends
+        });
+
+      menuItem.setFontFamily("PixelArtFont");
 
       this.menu.add(menuItem);
     });
@@ -40,58 +57,6 @@ class PhaserGameScene extends Phaser.Scene {
 
   update() {
     // Handle player movement, combat, etc...
-  }
-}
-
-class TutorialScene extends Phaser.Scene {
-  constructor(config, parent) {
-    super(config);
-    this.parent = parent;
-  }
-
-  preload() {
-    this.load.image("background", "artwork/background_menu3.png");
-    this.load.image("textbox", "artwork/textbox.jpg");
-  }
-  create() {
-    // Add the background image
-    this.add.image(0, 0, "background").setOrigin(0, 0);
-
-    // Add the textbox at the bottom of the screen
-    const textbox = this.add
-      .image(400, this.game.config.height - 50, "textbox")
-      .setOrigin(0.5, 1);
-
-    // Create the text and anchor it to the textbox
-    this.text = this.add.text(
-      textbox.x - textbox.width / 2,
-      textbox.y - textbox.height,
-      "Welcome to the tutorial!",
-      {
-        fontFamily: '"Unscii"', // Replace with your desired font family
-        fontSize: "24px",
-        fontStyle: "bold", // Set the font to bold
-        color: "#0000ff", // Blue color
-        align: "left",
-        wordWrap: { width: textbox.width, useAdvancedWrap: true },
-        stroke: "#000000",
-        strokeThickness: 2,
-        shadow: {
-          // Add a bit of shadow
-          offsetX: 2,
-          offsetY: 2,
-          color: "#000",
-          blur: 2,
-          stroke: true,
-          fill: true,
-        },
-      }
-    );
-    this.text.setOrigin(0, 0); // Top left align the text
-  }
-
-  update() {
-    // Tutorial update logic...
   }
 }
 
@@ -124,10 +89,19 @@ class Game extends React.Component {
   menuItemClicked = (item) => {
     switch (item) {
       case "Tutorial":
-        // Start the tutorial scene
         this.game.scene.add(
           "TutorialScene",
           new TutorialScene({ key: "TutorialScene" }, this),
+          true
+        );
+        break;
+      case "PVP Matchmaking":
+        this.game.scene.add(
+          "PVPMatchmakingScene",
+          new PVPMatchmakingScene(
+            { key: "PVPMatchmakingScene" },
+            this
+          ),
           true
         );
         break;

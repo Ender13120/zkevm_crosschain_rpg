@@ -36,3 +36,23 @@
     transform: rotate(360deg);
   }
 }
+
+@font-face {
+  font-family: "PixelArtFont";
+  src: url("./css_art/pixelartfont.ttf") format("truetype"); /* URL to font */
+  font-weight: normal;
+  font-style: normal;
+}
+
+@font-face {
+  font-family: "combatfont";
+  src: url("./css_art/combatfont.ttf") format("truetype"); /* URL to font */
+  font-weight: normal;
+  font-style: normal;
+}
+
+.arrow-icon {
+  font-size: 20px;
+  color: #ffffff;
+  display: none; /* Initially hidden */
+}
