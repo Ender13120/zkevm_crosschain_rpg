@@ -8,43 +8,49 @@ class TutorialScene extends Phaser.Scene {
 
   preload() {
     this.load.image("background", "artwork/background_menu3.png");
-    this.load.image("textbox", "artwork/textbox.jpg");
   }
+
   create() {
     // Add the background image
     this.add.image(0, 0, "background").setOrigin(0, 0);
 
-    // Add the textbox at the bottom of the screen
-    const textbox = this.add
-      .image(400, this.game.config.height - 50, "textbox")
-      .setOrigin(0.5, 1);
+    // Create the textbox graphics at the bottom of the screen
+    const textboxWidth = 800;
+    const textboxHeight = 150;
+    const textboxX = this.game.config.width / 2;
+    const textboxY = this.game.config.height - 50;
+
+    let textboxGraphics = this.add.graphics();
+    textboxGraphics.fillStyle(0x000033, 0.8); // Shadow color
+    textboxGraphics.fillRoundedRect(
+      textboxX - textboxWidth / 2 + 3,
+      textboxY - textboxHeight + 3,
+      textboxWidth,
+      textboxHeight,
+      7
+    );
+    textboxGraphics.fillStyle(0x000066, 1); // Main color
+    textboxGraphics.fillRoundedRect(
+      textboxX - textboxWidth / 2,
+      textboxY - textboxHeight,
+      textboxWidth,
+      textboxHeight,
+      7
+    );
 
     // Create the text and anchor it to the textbox
     this.text = this.add.text(
-      textbox.x - textbox.width / 2,
-      textbox.y - textbox.height,
+      textboxX - textboxWidth / 2 + 20, // +20 for padding
+      textboxY - textboxHeight + 10, // +10 for padding
       "Welcome to the tutorial!",
       {
-        fontFamily: '"Unscii"', // Replace with your desired font family
+        fontFamily: "combatfont",
         fontSize: "24px",
-        fontStyle: "bold", // Set the font to bold
-        color: "#0000ff", // Blue color
+        color: "#FFFFFF",
         align: "left",
-        wordWrap: { width: textbox.width, useAdvancedWrap: true },
-        stroke: "#000000",
-        strokeThickness: 2,
-        shadow: {
-          // Add a bit of shadow
-          offsetX: 2,
-          offsetY: 2,
-          color: "#000",
-          blur: 2,
-          stroke: true,
-          fill: true,
-        },
+        wordWrap: { width: textboxWidth - 40, useAdvancedWrap: true }, // -40 for padding
       }
     );
-    this.text.setOrigin(0, 0); // Top left align the text
 
     const backButton = this.add
       .text(20, 20, "Back", {
@@ -67,6 +73,7 @@ class TutorialScene extends Phaser.Scene {
   }
 
   backToMenu() {
+    this.game.scene.start("GameScene");
     this.scene.bringToTop("GameScene");
     this.scene.stop("TutorialScene");
     this.scene.remove("TutorialScene"); // Removing the scene

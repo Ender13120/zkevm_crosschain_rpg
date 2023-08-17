@@ -5,29 +5,43 @@ class PVPMatchmakingScene extends Phaser.Scene {
     super(config);
     this.parent = parent;
 
+    this.playerCharacterNames = ["warrior", "icemage", "archer"];
     this.combatMenuOptions = [];
-
+    this.spellCasted = false;
+    this.names = ["Aria", "Eldric", "Luna"];
+    this.EnemyNames = ["Rat", "Bigger Rat", "Uber Rat"];
+    this.hpValueParty = [100, 100, 100];
+    this.hpValueEnemies = [100, 100, 100];
     this.selectedEnemyIndex = 0;
     this.attacking = false;
     this.enemies = []; // To store enemy sprites
     this.enemyHighlightGraphic = null;
     this.enemyHPHighlightGraphic = null;
+    this.spellMenuRendered = false;
     this.playerTextObjects = []; // Add this to the class constructor or the create method
     this.spells = [
       {
         name: "Fireball",
         description: "A ball of fire dealing damage to an enemy.",
+        damage: 20,
       },
-      { name: "Heal", description: "Heals a party member." },
       {
         name: "Lightning Strike",
         description: "A bolt of lightning hitting an enemy.",
+        damage: 30,
       },
       {
-        name: "Protection",
-        description: "Shields a party member from attacks.",
+        name: "Curse",
+        description: "Weakens an enemy's defenses.",
+        damage: 0,
       },
-      { name: "Curse", description: "Weakens an enemy's defenses." },
+
+      //@notice for spells like these, we need to ignore targeting and just cast the spell
+      {
+        name: "Bless the Party",
+        description: "Heals the party.",
+        damage: 0,
+      },
     ];
     this.selectedSpellIndex = 0;
     this.inSpellMenu = false;
@@ -39,18 +53,12 @@ class PVPMatchmakingScene extends Phaser.Scene {
   preload() {
     this.load.image("pvpBackground", "artwork/pvpBackground.jpg");
 
-    this.load.image(
-      "player1",
-      "artwork/characters/player1_asset.jpg"
-    );
-    this.load.image(
-      "player2",
-      "artwork/characters/player2_asset.jpg"
-    );
-    this.load.image(
-      "player3",
-      "artwork/characters/player3_asset.jpg"
-    );
+    this.playerCharacterNames.forEach((character, index) => {
+      this.load.image(
+        `player${index + 1}`,
+        `artwork/characters/${character}_asset.jpg`
+      );
+    });
     this.load.image("enemy1", "artwork/characters/enemy1_asset.jpg");
     this.load.image("enemy2", "artwork/characters/enemy2_asset.png");
     this.load.image("enemy3", "artwork/characters/enemy3_asset.png");
@@ -178,14 +186,32 @@ class PVPMatchmakingScene extends Phaser.Scene {
     this.input.keyboard.on("keydown-ENTER", () => {
       if (this.inSpellMenu) {
         // Add logic to handle the spell casting here
-        console.log(
-          `Casting ${this.spells[this.selectedSpellIndex].name}`
-        );
-        // For now, let's just log the casting and then exit the spell menu
-        this.exitSpellMenu();
-      }
-      if (this.attacking) {
+
+        if (this.enemyHighlightGraphic) {
+          this.enemyHighlightGraphic.destroy();
+        }
+
+        if (this.enemyHPHighlightGraphic) {
+          this.enemyHPHighlightGraphic.destroy();
+        }
+        this.handleCombatOption("SpellsTargeting");
+        this.spellMenuRendered = true;
+
+        console.log(this.selectedSpellIndex);
+      } else if (this.attacking) {
         // Add your attack logic here, using this.selectedEnemyIndex to know which enemy was targeted
+
+        if (this.spellCasted) {
+          //do spell
+
+          console.log(this.selectedSpellIndex);
+          console.log(this.spells[this.selectedSpellIndex].name);
+        } else {
+          //do attack
+
+          console.log("attacking!");
+        }
+        console.log(this.selectedEnemyIndex);
         if (this.enemyHighlightGraphic) {
           this.enemyHighlightGraphic.destroy();
         }
@@ -193,11 +219,24 @@ class PVPMatchmakingScene extends Phaser.Scene {
         if (this.enemyHPHighlightGraphic) {
           this.enemyHPHighlightGraphic.destroy();
         }
+
+        this.nextPlayerTurn();
+        if (this.spellMenuRendered) {
+          this.exitSpellMenu();
+        }
       } else {
         this.handleCombatOption(
           this.combatMenuOptions[this.selectedOptionIndex]
         );
       }
+    });
+
+    this.input.keyboard.on("keydown-ESC", () => {
+      this.resetToMainCombatMenu();
+    });
+
+    this.input.keyboard.on("keydown-LEFT", () => {
+      this.resetToMainCombatMenu();
     });
   }
 
@@ -210,12 +249,40 @@ class PVPMatchmakingScene extends Phaser.Scene {
       case "Spells":
         this.showSpellMenu();
         break;
+
+      case "SpellsTargeting":
+        console.log("entered SpellsTargeting");
+        this.inSpellMenu = false;
+        this.attacking = true;
+        this.highlightEnemyHP(this.selectedEnemyIndex);
+        break;
+
+      case "Concede":
+        console.log("conceded");
+
+        this.backToMenu();
     }
+  }
+
+  nextPlayerTurn() {
+    // Increment currentPlayerTurn or reset to 0 if we're already at the last player
+    this.currentPlayerTurn =
+      (this.currentPlayerTurn + 1) % this.playerSprites.length;
+
+    // Now highlight the current player's turn
+    this.highlightPlayerTurn();
+    this.removePlayerHPBars();
+    this.createPlayerHPBars();
   }
 
   showSpellMenu() {
     this.inSpellMenu = true;
+    this.spellCasted = true;
     this.removePlayerHPBars();
+    if (this.hpGraphics) {
+      this.hpGraphics.destroy();
+    }
+
     this.selectedSpellIndex = 0;
     this.currentSpellPage = 0; // To track which "page" or set of spells we are on
 
@@ -225,6 +292,32 @@ class PVPMatchmakingScene extends Phaser.Scene {
     // Display the initial set of spells
     this.displaySpells();
     this.updateSelectedSpell();
+  }
+
+  resetToMainCombatMenu() {
+    // If currently in spell menu, exit it
+    if (this.inSpellMenu) {
+      this.exitSpellMenu();
+    }
+
+    // If currently attacking, reset attack state
+    if (this.attacking) {
+      this.attacking = false;
+    }
+
+    // Remove any highlights or targeting graphics
+    if (this.enemyHighlightGraphic) {
+      this.enemyHighlightGraphic.destroy();
+    }
+
+    if (this.enemyHPHighlightGraphic) {
+      this.enemyHPHighlightGraphic.destroy();
+    }
+
+    // Redraw the player HP bars and arrows (if needed)
+    this.exitSpellMenu();
+
+    this.updateSelectedOption();
   }
 
   displaySpells() {
@@ -287,12 +380,16 @@ class PVPMatchmakingScene extends Phaser.Scene {
 
   exitSpellMenu() {
     this.inSpellMenu = false;
+    this.spellMenuRendered = false;
+    this.spellCasted = true;
+
     this.spellTextObjects.forEach((spellText) => spellText.destroy());
     if (this.spellDescriptionText) {
       this.spellDescriptionText.destroy();
     }
 
     // Redraw the player HP bars and arrows
+    this.removePlayerHPBars();
     this.createPlayerHPBars();
     this.updateSelectedOption();
   }
@@ -338,6 +435,10 @@ class PVPMatchmakingScene extends Phaser.Scene {
     // Create inverted white triangle above the player sprite
     this.createTriangleAboveSprite(currentPlayerSprite);
 
+    if (this.hpGraphics) {
+      this.hpGraphics.destroy();
+    }
+
     // Highlight player's HP bar
     this.hpGraphics = this.add.graphics();
     this.hpGraphics.fillStyle(0xffffff, 0.5); // semi-transparent white
@@ -355,12 +456,12 @@ class PVPMatchmakingScene extends Phaser.Scene {
       this.triangle.destroy();
     }
 
-    const triangleWidth = 30; // Reduced from 40
-    const triangleHeight = 20; // Reduced from 30
+    const triangleWidth = 20; // Reduced from 40
+    const triangleHeight = 15; // Reduced from 30
 
     // Drawing the triangle using Phaser's Graphics API
     this.triangle = this.add.graphics({
-      lineStyle: { width: 2, color: 0xffffff },
+      lineStyle: { width: 2, color: 0x000000 }, // Black outline
       fillStyle: { color: 0xffffff },
     });
     this.triangle.beginPath();
@@ -422,25 +523,11 @@ class PVPMatchmakingScene extends Phaser.Scene {
     this.arrows[this.selectedOptionIndex].setVisible(true);
   }
 
-  getRandomName() {
-    const names = [
-      "Aria",
-      "Eldric",
-      "Luna",
-      "Orion",
-      "Zara",
-      "Kael",
-      "Iris",
-      "Galen",
-    ];
-    return names[Math.floor(Math.random() * names.length)];
-  }
-
   createPlayerHPBars() {
     const players = ["player1", "player2", "player3"];
 
     players.forEach((player, index) => {
-      const playerName = this.getRandomName();
+      const playerName = this.names[index];
       const nameText = this.add.text(
         280,
         610 + index * 35,
@@ -452,7 +539,7 @@ class PVPMatchmakingScene extends Phaser.Scene {
         }
       );
 
-      const hpValue = `${Math.floor(Math.random() * 100)}/100`;
+      const hpValue = `${this.hpValueParty[index]}/100`;
       const hpText = this.add.text(430, 610 + index * 35, hpValue, {
         fontSize: "16px",
         fontFamily: "combatfont",
@@ -479,7 +566,7 @@ class PVPMatchmakingScene extends Phaser.Scene {
     const enemies = ["enemy1", "enemy2", "enemy3"];
 
     enemies.forEach((enemy, index) => {
-      const enemyName = this.getRandomName();
+      const enemyName = this.EnemyNames[index];
       this.add.text(600, 610 + index * 35, enemyName, {
         fontSize: "16px",
         fontFamily: "combatfont",
@@ -487,7 +574,7 @@ class PVPMatchmakingScene extends Phaser.Scene {
       });
 
       // Assuming a sample HP value here; you should replace with actual HP
-      const hpValue = `${Math.floor(Math.random() * 100)}/100`;
+      const hpValue = `${this.hpValueEnemies[index]}/100`;
       this.add.text(750, 610 + index * 35, hpValue, {
         fontSize: "16px",
         fontFamily: "combatfont",
@@ -525,6 +612,7 @@ class PVPMatchmakingScene extends Phaser.Scene {
   }
 
   backToMenu() {
+    this.game.scene.start("GameScene");
     this.scene.bringToTop("GameScene");
     this.scene.stop("PVPMatchmakingScene");
     this.scene.remove("PVPMatchmakingScene"); // Removing the scene

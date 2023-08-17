@@ -2,6 +2,8 @@ import React from "react";
 import Phaser from "phaser";
 import TutorialScene from "./tutorial/tutorialScene.js";
 import PVPMatchmakingScene from "./pvpCombat/combatScene.js";
+import CreateNewTeamScene from "./new_team/CreateNewTeam.js";
+import ManageTeamScene from "./manage_team/ManageTeamScene.js";
 
 class PhaserGameScene extends Phaser.Scene {
   constructor(config, parent) {
@@ -16,14 +18,25 @@ class PhaserGameScene extends Phaser.Scene {
   }
 
   create() {
-    this.add.image(0, 0, "menubackground").setOrigin(0, 0);
+    this.background = this.add
+      .tileSprite(0, 0, 1024, 768, "menubackground")
+      .setOrigin(0, 0);
+
+    // Opacity effect for the background
+    this.tweens.add({
+      targets: this.background,
+      alpha: 0.5, // Target opacity
+      duration: 6000,
+      yoyo: true, // Makes the tween reverse and repeat
+      repeat: -1, // Infinite repetitions
+    });
 
     const menuItems = [
       "Tutorial",
       "Create New Team",
       "Manage Team",
       "PVP Matchmaking",
-      "PVE Matchmaking",
+
       "Travel through ZK-Portal",
       "Claim Rewards from ZK-Portal",
     ];
@@ -89,6 +102,7 @@ class Game extends React.Component {
   menuItemClicked = (item) => {
     switch (item) {
       case "Tutorial":
+        this.game.scene.stop("GameScene");
         this.game.scene.add(
           "TutorialScene",
           new TutorialScene({ key: "TutorialScene" }, this),
@@ -96,6 +110,7 @@ class Game extends React.Component {
         );
         break;
       case "PVP Matchmaking":
+        this.game.scene.stop("GameScene");
         this.game.scene.add(
           "PVPMatchmakingScene",
           new PVPMatchmakingScene(
@@ -105,6 +120,26 @@ class Game extends React.Component {
           true
         );
         break;
+      case "Create New Team":
+        this.game.scene.stop("GameScene");
+
+        this.game.scene.add(
+          "CreateNewTeamScene",
+          new CreateNewTeamScene({ key: "CreateNewTeamScene" }, this),
+          true
+        );
+        break;
+
+      case "Manage Team":
+        this.game.scene.stop("GameScene");
+
+        this.game.scene.add(
+          "ManageTeamScene",
+          new ManageTeamScene({ key: "ManageTeamScene" }, this),
+          true
+        );
+        break;
+
       // Add other cases here...
       default:
         break;
