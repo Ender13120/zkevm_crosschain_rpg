@@ -24,7 +24,7 @@ contract SpiritHeroes is
         int CONST;
         int WIS;
     }
-
+    address public gameDiamond;
     mapping(uint256 => PlanewalkersStats) private _tokenStats;
 
     /// @custom:oz-upgrades-unsafe-allow constructor
@@ -32,11 +32,12 @@ contract SpiritHeroes is
         _disableInitializers();
     }
 
-    function initialize() public initializer {
+    function initialize(address _gameDiamond) public initializer {
         __ERC721_init("SpiritHeroes", "SPT");
         __ERC721Enumerable_init();
         __ERC721URIStorage_init();
         __Ownable_init();
+        gameDiamond = _gameDiamond;
     }
 
     function safeMint(
@@ -99,6 +100,12 @@ contract SpiritHeroes is
             string(
                 abi.encodePacked("data:application/json;charset=utf-8,", json)
             );
+    }
+
+    function getTokenStats(
+        uint256 tokenId
+    ) public view returns (PlanewalkersStats memory) {
+        return _tokenStats[tokenId];
     }
 
     function supportsInterface(
