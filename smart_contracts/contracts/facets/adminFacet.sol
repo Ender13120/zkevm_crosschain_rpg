@@ -1,6 +1,6 @@
 //@TODO administrative functions
 
-import {AppStorage, Modifiers} from "../libraries/AppStorage.sol";
+import {AppStorage, Modifiers, Spell, SpellType} from "../libraries/AppStorage.sol";
 
 import "../interfaces/polygonBridge.sol";
 
@@ -35,6 +35,8 @@ contract AdminFacet is Modifiers {
         s.currentSisterChainId = _currentSisterChainId;
         s.currentChainType = _currentChainType;
         s.sisterBridgeSetup = _sisterBridgeSetup;
+        s.ownershipDurationInterval = 24 * 60 * 60 * 7;
+
         emit GENESIS();
     }
 
@@ -42,5 +44,31 @@ contract AdminFacet is Modifiers {
         address _newSisterContract
     ) external onlyOwner {
         s.currentSisterContract = _newSisterContract;
+    }
+
+    function setupSpells() external onlyOwner {
+        s.spells[SpellType.Fireball] = Spell({
+            name: "Fireball",
+            description: "A ball of fire dealing damage to an enemy.",
+            damage: 20,
+            utilStrength: 0,
+            requiresTarget: true
+        });
+
+        s.spells[SpellType.LightningStrike] = Spell({
+            name: "Lightning Strike",
+            description: "A bolt of lightning hitting a random enemy.",
+            damage: 30,
+            utilStrength: 0,
+            requiresTarget: true
+        });
+
+        s.spells[SpellType.BlessTheParty] = Spell({
+            name: "Bless the Party",
+            description: "Heals the party.",
+            damage: 0,
+            utilStrength: 10,
+            requiresTarget: false
+        });
     }
 }

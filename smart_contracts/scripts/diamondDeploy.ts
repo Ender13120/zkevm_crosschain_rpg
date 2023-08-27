@@ -1,9 +1,9 @@
 import { Signer } from "@ethersproject/abstract-signer";
 import { ethers, upgrades } from "hardhat";
+import hre from "hardhat";
 
 import {
   AdminFacet,
-  BridgeFacet,
   DiamondCutFacet,
   DiamondInit__factory,
   Diamond__factory,
@@ -54,7 +54,13 @@ export async function deployDiamond() {
   // deploy facets
   console.log("");
   console.log("Deploying facets");
-  const FacetNames = ["AdminFacet", "BridgeFacet", "OwnershipFacet"];
+  const FacetNames = [
+    "AdminFacet",
+    "BridgeFacet",
+    "OwnershipFacet",
+    "TeamFacet",
+    "CombatFacet",
+  ];
   const cut = [];
   for (const FacetName of FacetNames) {
     const Facet = await ethers.getContractFactory(FacetName);
@@ -132,10 +138,6 @@ export async function deployDiamond() {
     false
   );
   await setAddresses.wait();
-
-  console.log("starting init");
-
-  console.log("ALL DONE");
 
   return {
     diamondAddress: diamond.address,

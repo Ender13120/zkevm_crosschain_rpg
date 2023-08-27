@@ -36,7 +36,7 @@ contract BridgeFacet is Modifiers {
                 .getTokenStats(nftIds[i]);
             tokenDataArray[i] = abi.encode(stats);
         }
-        bytes memory data = abi.encode(nftIds, tokenDataArray);
+        bytes memory data = abi.encode(nftIds, tokenDataArray, msg.sender);
 
         emit bridgeRequestSent(msg.sender, data);
         sendMessageToL2(s.currentSisterContract, data);
@@ -83,20 +83,28 @@ contract BridgeFacet is Modifiers {
         bytes memory data
     ) external payable {
         //@TODO reintroduce later(variable setting has to be done correctly cross chain)
-        //require(originAddress == s.currentSisterContract);
+        require(originAddress == s.currentSisterContract);
 
-        //@notice this is where the magic happens. we save the ownership of the tokenIds broadcasted date.
-        receiveMessageFromL1(data, originAddress);
+        //from goerli
+        if (originNetwork == 0) {
+            //@notice this is where the magic happens. we save the ownership of the tokenIds broadcasted date.
+            receiveMessageFromL1(data, originAddress);
+        }
+        //from polygon zkevm
+        else if (originNetwork == 1) {
+            receiveMessageFromL2(data, originAddress);
+        }
     }
 
     function receiveMessageFromL1(
         bytes memory data,
         address originAddress
     ) internal {
-        (uint256[] memory tokenIds, bytes[] memory tokenDataArray) = abi.decode(
-            data,
-            (uint256[], bytes[])
-        );
+        (
+            uint256[] memory tokenIds,
+            bytes[] memory tokenDataArray,
+            address owner
+        ) = abi.decode(data, (uint256[], bytes[], address));
 
         for (uint i = 0; i < tokenDataArray.length; i++) {
             PlanewalkersStats memory stats = abi.decode(
@@ -104,7 +112,7 @@ contract BridgeFacet is Modifiers {
                 (PlanewalkersStats)
             );
             s.tokenStats[tokenIds[i]] = stats;
-            s.currentOwner[tokenIds[i]] = originAddress;
+            s.currentOwner[tokenIds[i]] = owner;
             s.ownershipBroadcastDate[tokenIds[i]] = block.timestamp;
 
             emit bridgeSuccessOwnership(
@@ -112,6 +120,23 @@ contract BridgeFacet is Modifiers {
                 address(s.heroContractAddress),
                 tokenIds[i]
             );
+        }
+    }
+
+    function receiveMessageFromL2(
+        bytes memory data,
+        address originAddress
+    ) internal {
+        (address _owner, bool _victory, uint256[] memory _nftIds) = abi.decode(
+            data,
+            (address, bool, uint256[])
+        );
+
+        if (_victory) {
+            for (uint i = 0; i < _nftIds.length; i++) {
+                //@notice flat EXP gain for now.
+                s.currentEXPHero[_nftIds[i]] += 100;
+            }
         }
     }
 

@@ -27,6 +27,11 @@ contract SpiritHeroes is
     address public gameDiamond;
     mapping(uint256 => PlanewalkersStats) private _tokenStats;
 
+    mapping(uint256 => PlanewalkersStats) private heroClassStatsInit;
+    uint public totalClasses;
+
+    uint256 private _currentTokenId;
+
     /// @custom:oz-upgrades-unsafe-allow constructor
     constructor() {
         _disableInitializers();
@@ -42,13 +47,58 @@ contract SpiritHeroes is
 
     function safeMint(
         address to,
-        uint256 tokenId,
         string memory uri,
         PlanewalkersStats memory stats
     ) public onlyOwner {
-        _safeMint(to, tokenId);
-        _setTokenURI(tokenId, uri);
-        _tokenStats[tokenId] = stats;
+        _currentTokenId = _currentTokenId + 1;
+        _safeMint(to, _currentTokenId);
+
+        //@notice wont need to set the tokenURI manually, since its a onchain-tokenURI here.
+        //@notice openseas should work natively with the tokenURI view function, but have to doublecheck.
+
+        _setTokenURI(_currentTokenId, uri);
+        _tokenStats[_currentTokenId] = stats;
+    }
+
+    function safeMint(address to, PlanewalkersStats memory stats) internal {
+        _currentTokenId = _currentTokenId + 1;
+        _safeMint(to, _currentTokenId);
+        _tokenStats[_currentTokenId] = stats;
+    }
+
+    function createTeam(address _to, uint[] memory _heroChoices) external {
+        require(
+            msg.sender == gameDiamond,
+            "only the gameDiamond can create team-members!"
+        );
+
+        for (uint i = 0; i < _heroChoices.length; i++) {
+            uint heroClassId = _heroChoices[i];
+
+            // Ensure that the hero class ID is valid
+            require(
+                heroClassStatsInit[heroClassId].health != 0,
+                "Invalid hero class ID!"
+            );
+
+            // Use the hero class stats for minting the NFT
+            PlanewalkersStats memory stats = heroClassStatsInit[heroClassId];
+
+            // Mint the NFT using the safeMint function
+            safeMint(_to, stats);
+        }
+    }
+
+    function createCharacterClasses(
+        uint[] memory _heroClassId,
+        PlanewalkersStats[] memory _stats
+    ) external onlyOwner {
+        require(_heroClassId.length == _stats.length, "Mismatched arrays");
+
+        for (uint i = 0; i < _heroClassId.length; i++) {
+            heroClassStatsInit[_heroClassId[i]] = _stats[i];
+            totalClasses++;
+        }
     }
 
     // The following functions are overrides required by Solidity.
@@ -121,6 +171,29 @@ contract SpiritHeroes is
         returns (bool)
     {
         return super.supportsInterface(interfaceId);
+    }
+
+    function getOwnedTokensWithStats(
+        address _owner
+    )
+        external
+        view
+        returns (
+            uint256[] memory tokenIds,
+            PlanewalkersStats[] memory statsArray
+        )
+    {
+        uint256 tokenCount = balanceOf(_owner);
+        tokenIds = new uint256[](tokenCount);
+        statsArray = new PlanewalkersStats[](tokenCount);
+
+        for (uint256 i = 0; i < tokenCount; i++) {
+            uint256 tokenId = tokenOfOwnerByIndex(_owner, i);
+            tokenIds[i] = tokenId;
+            statsArray[i] = _tokenStats[tokenId];
+        }
+
+        return (tokenIds, statsArray);
     }
 
     function int2str(int _i) internal pure returns (string memory) {

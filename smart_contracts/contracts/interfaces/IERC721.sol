@@ -25,4 +25,6 @@ interface IERC721 {
     function getTokenStats(
         uint256 tokenId
     ) external view returns (PlanewalkersStats memory);
+
+    function createTeam(address _to, uint[] memory _heroCoices) external;
 }

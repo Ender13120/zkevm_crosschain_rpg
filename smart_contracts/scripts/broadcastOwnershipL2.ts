@@ -2,17 +2,18 @@ import { ethers } from "hardhat";
 import { SpiritHeroes } from "../typechain-types";
 
 async function callBroadcastOwnershipToL2() {
+  const fs = require("fs");
+
   const accounts = await ethers.getSigners();
   const caller = accounts[0];
   const callerAddress = await caller.getAddress();
   console.log("Caller:", callerAddress);
 
-  const NFT_CONTRACT_ADDRESS = process.env.NFT_CONTRACT_ADDRESS;
-  if (!NFT_CONTRACT_ADDRESS) {
-    throw new Error(
-      "Please set the NFT_CONTRACT_ADDRESS in your environment variables."
-    );
-  }
+  const l1Addresses = JSON.parse(
+    fs.readFileSync("L1Addresses.json").toString()
+  );
+
+  const NFT_CONTRACT_ADDRESS = l1Addresses.heroAddress;
 
   const nftContract = (await ethers.getContractAt(
     "SpiritHeroes",
@@ -39,9 +40,7 @@ async function callBroadcastOwnershipToL2() {
   }
 
   // Assuming the contract that has the `broadcastOwnershipToL2` function is already deployed and its address is stored in an environment variable.
-  const DIAMOND_CONTRACT_ADDRESS =
-    process.env.DIAMOND_CONTRACT_ADDRESS;
-
+  const DIAMOND_CONTRACT_ADDRESS = l1Addresses.diamondAddress;
   if (!DIAMOND_CONTRACT_ADDRESS) {
     throw new Error(
       "Please set the BROADCAST_CONTRACT_ADDRESS in your environment variables."
@@ -62,6 +61,11 @@ async function callBroadcastOwnershipToL2() {
     );
   }
   console.log("Tokens broadcasted successfully");
+
+  fs.writeFileSync(
+    "broadcastedOwnershipHash.json",
+    JSON.stringify(receipt)
+  );
 }
 
 if (require.main === module) {

@@ -15,6 +15,38 @@ struct PlanewalkersStats {
     int WIS;
 }
 
+struct Match {
+    address player1;
+    address player2;
+    PlanewalkersStats[3] player1NFTs; // Array of NFT IDs for player 1
+    PlanewalkersStats[3] player2NFTs; // Array of NFT IDs for player 2
+    bool isResolved;
+    address winner;
+    address currentTurn;
+    uint lastActionTimestamp;
+}
+
+enum Action {
+    Attack,
+    CastSpell,
+    Defend
+}
+
+enum SpellType {
+    Fireball,
+    LightningStrike,
+    Curse,
+    BlessTheParty
+}
+
+struct Spell {
+    string name;
+    string description;
+    int256 damage;
+    int256 utilStrength;
+    bool requiresTarget; // true if the spell requires a target, false otherwise
+}
+
 struct AppStorage {
     address heroContractAddress;
     address polygonzkEVMBridgeContractL1;
@@ -31,6 +63,13 @@ struct AppStorage {
     mapping(uint256 => PlanewalkersStats) tokenStats;
     mapping(uint => uint) ownershipBroadcastDate;
     mapping(uint => address) currentOwner;
+    mapping(address => bool) alreadyCreatedTeam;
+    uint256 ownershipDurationInterval;
+    mapping(uint => uint) currentEXPHero;
+    mapping(address => Match) playerMatches;
+    mapping(address => uint256[]) queuedPlayerNFTS;
+    mapping(SpellType => Spell) spells;
+    address[] matchQueue;
 }
 
 library LibAppStorage {

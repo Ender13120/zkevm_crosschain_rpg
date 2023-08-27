@@ -3,33 +3,41 @@ import { SpiritHeroes } from "../typechain-types";
 import http from "http";
 
 async function acceptOwnershipOnL2() {
+  const fs = require("fs");
+
+  const l1Addresses = JSON.parse(
+    fs.readFileSync("L1Addresses.json").toString()
+  );
+  const l2Addresses = JSON.parse(
+    fs.readFileSync("L2Addresses.json").toString()
+  );
+
   const accounts = await ethers.getSigners();
   const caller = accounts[0];
   const callerAddress = await caller.getAddress();
   console.log("Caller:", callerAddress);
 
-  const ZKEVM_DIAMOND_CONTRACT_ADDRESS =
-    process.env.ZKEVM_DIAMOND_CONTRACT_ADDRESS;
-  if (!ZKEVM_DIAMOND_CONTRACT_ADDRESS) {
-    throw new Error(
-      "Please set the ZKEVM_DIAMOND_CONTRACT_ADDRESS in your environment variables."
-    );
-  }
+  const ZKEVM_DIAMOND_CONTRACT_ADDRESS = l2Addresses.diamondAddress;
 
   const acceptingOwnershipContract = await ethers.getContractAt(
     "BridgeFacet", // Replace with your contract's name
     ZKEVM_DIAMOND_CONTRACT_ADDRESS
   );
 
-  //@TODO add data.
-  //l1txHash
+  const broadcastedOwnershipHash = JSON.parse(
+    fs.readFileSync("broadcastedOwnershipHash.json").toString()
+  );
 
-  const l1txHash =
-    "0x89057d9aa6b5ab2d155877d8767b12a67029de8dad5f1892b6f0ceb372096844";
+  const l1txHash = broadcastedOwnershipHash.transactionHash as string;
 
+  console.log(l1txHash);
   // Get the required data for the smart contract function
   const { proof, index, dataPayload } =
-    await getProofFromLocalEndpoint(l1txHash);
+    await getProofFromLocalEndpoint(
+      l1txHash,
+      l1Addresses.diamondAddress,
+      l2Addresses.diamondAddress
+    );
 
   const smtProof = proof.merkle_proof;
   const mainnetExitRoot = proof.main_exit_root;
@@ -60,10 +68,12 @@ async function acceptOwnershipOnL2() {
 }
 
 async function getProofFromLocalEndpoint(
-  l1TxHash: string
+  l1TxHash: string,
+  l1Contract: string,
+  l2Contract: string
 ): Promise<{ proof: any; index: number; dataPayload: any }> {
   return new Promise((resolve, reject) => {
-    const url = `http://localhost:3000/proof-assistant-polygon/getProof/${l1TxHash}`;
+    const url = `http://localhost:3000/proof-assistant-polygon/getProof/${l1TxHash}/${l1Contract}/${l2Contract}`;
 
     http
       .get(url, (resp) => {
