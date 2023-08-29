@@ -66,6 +66,7 @@ struct AppStorage {
     mapping(address => bool) alreadyCreatedTeam;
     uint256 ownershipDurationInterval;
     mapping(uint => uint) currentEXPHero;
+    mapping(uint => uint) currentLevelHero;
     mapping(address => Match) playerMatches;
     mapping(address => uint256[]) queuedPlayerNFTS;
     mapping(SpellType => Spell) spells;

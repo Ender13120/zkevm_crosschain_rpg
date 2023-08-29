@@ -13,6 +13,12 @@ import "../interfaces/IERC721.sol";
 
 // Contract for open access NFT bridge
 contract TeamFacet is Modifiers {
+    event levelUp(
+        uint indexed newLevel,
+        uint indexed tokenId,
+        address indexed player
+    );
+
     //L1 Function
     //@notice creating a players team based on their choices:
     function selectAndCreateTeam(uint256[] memory _heroChoices) external {
@@ -133,6 +139,22 @@ contract TeamFacet is Modifiers {
         }
 
         return result;
+    }
+
+    //L1 Function
+    function levelUpHero(uint _nftId) external {
+        require(
+            IERC721(s.heroContractAddress).ownerOf(_nftId) == msg.sender,
+            "Sender is not the owner of the NFT"
+        );
+
+        require(s.currentEXPHero[_nftId] >= 100, "not enough EXP to level");
+
+        s.currentLevelHero[_nftId] += 1;
+
+        s.currentEXPHero[_nftId] -= 100;
+
+        emit levelUp(s.currentLevelHero[_nftId], _nftId, msg.sender);
     }
 
     //L1 Function
