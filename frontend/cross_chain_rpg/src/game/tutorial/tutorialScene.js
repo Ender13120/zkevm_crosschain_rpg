@@ -73,7 +73,7 @@ class TutorialScene extends Phaser.Scene {
   }
 
   backToMenu() {
-    this.game.scene.start("GameScene");
+    this.game.scene.resume("GameScene");
     this.scene.bringToTop("GameScene");
     this.scene.stop("TutorialScene");
     this.scene.remove("TutorialScene"); // Removing the scene

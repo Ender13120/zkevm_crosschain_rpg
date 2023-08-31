@@ -64,8 +64,6 @@ contract TeamFacet is Modifiers {
     }
 
     //L2 Function
-    //@TODO also needs to have an internal equivalent for matchmaking
-
     function getAndValidateSpiritTeam(
         uint256[] memory _nftIds,
         address _player
@@ -88,7 +86,7 @@ contract TeamFacet is Modifiers {
         return statsArray;
     }
 
-    function getTeamStats(
+    function getTeamStatsL1(
         uint256[] memory _nftIds
     ) external view returns (PlanewalkersStats[] memory) {
         PlanewalkersStats[] memory statsArray = new PlanewalkersStats[](
@@ -98,6 +96,23 @@ contract TeamFacet is Modifiers {
         for (uint i = 0; i < _nftIds.length; i++) {
             PlanewalkersStats memory stats = IERC721(s.heroContractAddress)
                 .getTokenStats(_nftIds[i]);
+            statsArray[i] = stats;
+        }
+
+        return statsArray;
+    }
+
+    //L2 function.
+    function getTeamStats(
+        uint256[] memory _nftIds
+    ) external view returns (PlanewalkersStats[] memory) {
+        PlanewalkersStats[] memory statsArray = new PlanewalkersStats[](
+            _nftIds.length
+        );
+
+        for (uint i = 0; i < _nftIds.length; i++) {
+            PlanewalkersStats memory stats = s.tokenStats[_nftIds[i]];
+
             statsArray[i] = stats;
         }
 
@@ -157,6 +172,5 @@ contract TeamFacet is Modifiers {
         emit levelUp(s.currentLevelHero[_nftId], _nftId, msg.sender);
     }
 
-    //L1 Function
-    //@TODO skilling with EXP
+
 }

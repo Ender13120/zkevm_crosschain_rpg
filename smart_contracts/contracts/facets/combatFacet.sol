@@ -14,20 +14,12 @@ import "./teamFacet.sol";
 
 // Contract for open access NFT bridge
 contract CombatFacet is Modifiers {
-    //@TODO combat turn logic
-    //@TODO function EXP gain back to L1.
-    //@TODO function resolveCombat
-    //@TODO claim match rewards L1
-
     event NewMatch(address indexed player1, address indexed player2);
     event MatchResolved(address indexed winner, address indexed loser);
 
     event rewardsSentToL1(address indexed owner, bytes indexed nftPayload);
 
-    //@TODO struct Match
-    //@TODO function lookForMatch
-    //@TODO function challengePlayer //@notice might be optional for later.
-    //@TODO accept challenge
+    event turnStarted(address indexed playersTurn, uint indexed matchId);
 
     // Players join a queue to find a match
     function lookForMatch(uint256[] memory _nftIds) external {
@@ -40,7 +32,8 @@ contract CombatFacet is Modifiers {
         );
 
         require(
-            s.playerMatches[msg.sender].lastActionTimestamp == 0,
+            s.playerMatches[s.currentMatchId[msg.sender]].lastActionTimestamp ==
+                0,
             "match already running!"
         );
 
@@ -52,12 +45,18 @@ contract CombatFacet is Modifiers {
             address player1 = s.matchQueue[0];
             address player2 = s.matchQueue[1];
 
+            //@TODO matchQueue shouldnt trigger when player 1 and 2 are the same
+            require(player1 != player2, "cannot play against yourself!");
             PlanewalkersStats[] memory stats1 = TeamFacet(address(this))
                 .getTeamStats(s.queuedPlayerNFTS[player1]);
             PlanewalkersStats[] memory stats2 = TeamFacet(address(this))
                 .getTeamStats(s.queuedPlayerNFTS[player2]);
 
-            Match storage newMatch = s.playerMatches[player1];
+            Match storage newMatch = s.playerMatches[s.currentMatchCount];
+            s.currentMatchId[player1] = s.currentMatchCount;
+            s.currentMatchId[player2] = s.currentMatchCount;
+            s.currentMatchCount++;
+
             newMatch.player1 = player1;
             newMatch.player2 = player2;
             for (uint i = 0; i < 3; i++) {
@@ -73,10 +72,6 @@ contract CombatFacet is Modifiers {
             // Emit event to notify of the new match
             emit NewMatch(player1, player2);
 
-            // Remove the players' NFTs from the playerNfts mapping (optional, based on your logic)
-            delete s.queuedPlayerNFTS[player1];
-            delete s.queuedPlayerNFTS[player2];
-
             // Remove the two players from the queue
             s.matchQueue.pop();
             s.matchQueue.pop();
@@ -86,7 +81,9 @@ contract CombatFacet is Modifiers {
     function getMatchForPlayer(
         address _player
     ) external view returns (Match memory) {
-        Match memory playerMatch = s.playerMatches[_player];
+        Match memory playerMatch = s.playerMatches[
+            s.currentMatchId[msg.sender]
+        ];
         require(
             playerMatch.player1 == _player || playerMatch.player2 == _player,
             "No match found for player"
@@ -99,7 +96,9 @@ contract CombatFacet is Modifiers {
         uint256[3] memory targetIds, // used for actions that need a target, ignored otherwise
         SpellType[3] memory spellTypes
     ) external {
-        Match storage currentPlayerMatch = s.playerMatches[msg.sender];
+        Match storage currentPlayerMatch = s.playerMatches[
+            s.currentMatchId[msg.sender]
+        ];
 
         // Ensure the match exists and it's the player's turn
         require(
@@ -113,12 +112,27 @@ contract CombatFacet is Modifiers {
         );
 
         for (uint i = 0; i < 3; i++) {
-            if (heroActions[i] == Action.Attack) {
-                _attackHero(currentPlayerMatch, i, targetIds[i]);
-            } else if (heroActions[i] == Action.CastSpell) {
-                _castSpell(currentPlayerMatch, i, targetIds[i], spellTypes[i]);
-            } else if (heroActions[i] == Action.Defend) {
-                _meditateHero(currentPlayerMatch, i);
+            PlanewalkersStats memory currentHero;
+
+            if (msg.sender == currentPlayerMatch.player1) {
+                currentHero = currentPlayerMatch.player1NFTs[i];
+            } else {
+                currentHero = currentPlayerMatch.player2NFTs[i];
+            }
+            //@notice only do hero action if they have more than 0 hp.
+            if (currentHero.health > 0) {
+                if (heroActions[i] == Action.Attack) {
+                    _attackHero(currentPlayerMatch, i, targetIds[i]);
+                } else if (heroActions[i] == Action.CastSpell) {
+                    _castSpell(
+                        currentPlayerMatch,
+                        i,
+                        targetIds[i],
+                        spellTypes[i]
+                    );
+                } else if (heroActions[i] == Action.Defend) {
+                    _meditateHero(currentPlayerMatch, i);
+                }
             }
         }
 
@@ -129,6 +143,11 @@ contract CombatFacet is Modifiers {
             : currentPlayerMatch.player1;
         currentPlayerMatch.lastActionTimestamp = block.timestamp;
 
+        //@TODO when you see this event, update match data on frontend to refresh hp
+        emit turnStarted(
+            currentPlayerMatch.currentTurn,
+            s.currentMatchId[msg.sender]
+        );
         // Check if the opposing team has been defeated
         if (
             msg.sender == currentPlayerMatch.player1 &&
@@ -243,24 +262,26 @@ contract CombatFacet is Modifiers {
             meditatingHero = _match.player2NFTs[heroIndex];
         }
 
-        // Increase the stats of the hero.
+        if (meditatingHero.health > 0) {
+            // Increase the stats of the hero.
 
-        meditatingHero.health =
-            meditatingHero.health +
-            (meditatingHero.health * 5) /
-            100; // +10% health
-        meditatingHero.ATK =
-            meditatingHero.ATK +
-            (meditatingHero.ATK * 5) /
-            100; // +5% attack
-        meditatingHero.CONST =
-            meditatingHero.CONST +
-            (meditatingHero.CONST * 5) /
-            100; // +5% constitution
-        meditatingHero.INT =
-            meditatingHero.INT +
-            (meditatingHero.INT * 5) /
-            100; // +5% intelligence
+            meditatingHero.health =
+                meditatingHero.health +
+                (meditatingHero.health * 5) /
+                100; // +10% health
+            meditatingHero.ATK =
+                meditatingHero.ATK +
+                (meditatingHero.ATK * 5) /
+                100; // +5% attack
+            meditatingHero.CONST =
+                meditatingHero.CONST +
+                (meditatingHero.CONST * 5) /
+                100; // +5% constitution
+            meditatingHero.INT =
+                meditatingHero.INT +
+                (meditatingHero.INT * 5) /
+                100; // +5% intelligence
+        }
     }
 
     function _getRandomTarget() internal view returns (uint256) {
@@ -282,7 +303,6 @@ contract CombatFacet is Modifiers {
         return true;
     }
 
-    // Placeholder function t
     function _resolveMatch(Match storage _match, address winner) internal {
         _match.isResolved = true;
         _match.winner = winner;
@@ -296,11 +316,14 @@ contract CombatFacet is Modifiers {
         //send rewards to l1
         _sendResultToL1(winner, true, s.queuedPlayerNFTS[winner]);
 
+
         delete s.queuedPlayerNFTS[_match.player1];
-        delete s.playerMatches[_match.player1];
+        delete s.playerMatches[s.currentMatchId[_match.player1]];
+        delete s.currentMatchId[_match.player1];
 
         delete s.queuedPlayerNFTS[_match.player2];
-        delete s.playerMatches[_match.player2];
+        delete s.currentMatchId[_match.player2];
+     
     }
 
     function _sendResultToL1(

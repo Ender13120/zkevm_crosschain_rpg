@@ -1,24 +1,42 @@
 import Phaser from "phaser";
 
-class PVPMatchmakingScene extends Phaser.Scene {
+class CombatScene extends Phaser.Scene {
   constructor(config, parent) {
     super(config);
     this.parent = parent;
 
-    this.playerCharacterNames = ["warrior", "icemage", "archer"];
+    this.combatContract = config.combatContract;
+    this.signer = config.signer;
+    this.currPlayerAddr = "0x";
+    this.currentTurn = "0x";
     this.combatMenuOptions = [];
     this.spellCasted = false;
-    this.names = ["Aria", "Eldric", "Luna"];
+    this.names = ["warrior", "icemage", "paladin"];
     this.EnemyNames = ["Rat", "Bigger Rat", "Uber Rat"];
     this.hpValueParty = [100, 100, 100];
+    this.maxHpValueParty = [100, 100, 100];
     this.hpValueEnemies = [100, 100, 100];
+    this.maxHpValueEnemies = [100, 100, 100];
     this.selectedEnemyIndex = 0;
     this.attacking = false;
+    this.meditating = false;
+    this.combatExecutionObject = {
+      Action: ["Attack", "CastSpell", "Defend"],
+      targetIds: [0, 1, 2],
+      spellTypes: ["Fireball", 1, 2],
+    };
+    this.currentPlayerTurn = 0;
+    this.turnState = "player";
+
+    this.player1 = "0x";
+    this.player2 = "0x";
     this.enemies = []; // To store enemy sprites
     this.enemyHighlightGraphic = null;
     this.enemyHPHighlightGraphic = null;
     this.spellMenuRendered = false;
+    this.enemyTurnText = null;
     this.playerTextObjects = []; // Add this to the class constructor or the create method
+    this.enemyTextObjects = []; // Add this to the class constructor or the create method
     this.spells = [
       {
         name: "Fireball",
@@ -27,7 +45,7 @@ class PVPMatchmakingScene extends Phaser.Scene {
       },
       {
         name: "Lightning Strike",
-        description: "A bolt of lightning hitting an enemy.",
+        description: "Lightning hitting a random enemy.",
         damage: 30,
       },
       {
@@ -52,26 +70,135 @@ class PVPMatchmakingScene extends Phaser.Scene {
 
   preload() {
     this.load.image("pvpBackground", "artwork/pvpBackground.jpg");
+  }
 
-    this.playerCharacterNames.forEach((character, index) => {
+  async create() {
+    //@notice get match data.
+    try {
+      // Make the contract call
+
+      const playerAddr = await this.signer.getAddress();
+      this.currPlayerAddr = playerAddr;
+      const matchData = await this.combatContract.getMatchForPlayer(
+        playerAddr
+      );
+
+      console.log("Length of matchData:", matchData.length);
+      console.log(matchData);
+      // Extract data from matchData
+
+      const player1 = matchData[0];
+      const player2 = matchData[1];
+      this.player1 = player1;
+      this.player2 = player2;
+      const isResolved = matchData[matchData.length - 4];
+      const winner = matchData[matchData.length - 3];
+      this.currentTurn = matchData[matchData.length - 2];
+
+      //@TODO
+      if (playerAddr == this.currentTurn) {
+        this.currentPlayerTurn = 0; // 0 = player1, 1 = player2, 2 = player3
+        this.turnState = "player";
+      } else {
+        this.currentPlayerTurn = 3; //@TODO this basically means its the enemies turn
+        this.turnState = "enemy";
+      }
+
+      const lastActionTimestamp = matchData[matchData.length - 1];
+
+      const statFields = [
+        "name",
+        "health",
+        "ATK",
+        "DEX",
+        "INT",
+        "CONST",
+        "WIS",
+      ];
+
+      // Slice only the relevant parts of matchData for player stats
+      const planeWalkersStatsFlat = matchData.slice(
+        2,
+        matchData.length - 4
+      );
+
+      const player1Flat = matchData[2];
+      const player2Flat = matchData[3];
+
+      console.log("player1Flat.length", player1Flat.length);
+      console.log("player2Flat.length", player2Flat.length);
+      const player1Team = [{}, {}, {}];
+      const player2Team = [{}, {}, {}];
+
+      for (let i = 0; i < 3; i++) {
+        for (let j = 0; j < 7; j++) {
+          player1Team[i][statFields[j]] = player1Flat[i][j];
+          player2Team[i][statFields[j]] = player2Flat[i][j];
+        }
+      }
+
+      console.log("player1Team:", player1Team);
+      console.log("player2Team:", player2Team);
+
+      // New code to decide which address to show where
+      if (playerAddr === this.player1) {
+        this.leftPlayerAddress = this.player1;
+        this.rightPlayerAddress = this.player2;
+      } else {
+        this.leftPlayerAddress = this.player2;
+        this.rightPlayerAddress = this.player1;
+      }
+
+      if (playerAddr === player1) {
+        const partyInfo = this.extractTeamInfo(player1Team);
+        const enemyInfo = this.extractTeamInfo(player2Team);
+
+        this.names = partyInfo.names;
+        this.hpValueParty = partyInfo.hpValues;
+        this.maxHpValueParty = partyInfo.maxHpValues;
+
+        this.EnemyNames = enemyInfo.names;
+        this.hpValueEnemies = enemyInfo.hpValues;
+        this.maxHpValueEnemies = enemyInfo.maxHpValues;
+      } else {
+        const partyInfo = this.extractTeamInfo(player2Team);
+        const enemyInfo = this.extractTeamInfo(player1Team);
+
+        this.names = partyInfo.names;
+        this.hpValueParty = partyInfo.hpValues;
+        this.maxHpValueParty = partyInfo.maxHpValues;
+
+        this.EnemyNames = enemyInfo.names;
+        this.hpValueEnemies = enemyInfo.hpValues;
+        this.maxHpValueEnemies = enemyInfo.maxHpValues;
+      }
+
+      //console.log("Formatted Match Data:", formattedMatch);
+    } catch (error) {
+      console.error(
+        "An error occurred while fetching the match data:",
+        error
+      );
+    }
+    this.backgroundContainer = this.add.container();
+    this.foregroundContainer = this.add.container();
+    this.menuContainer = this.add.container();
+
+    this.names.forEach((character, index) => {
       this.load.image(
         `player${index + 1}`,
         `artwork/characters/${character}_asset.jpg`
       );
     });
-    this.load.image("enemy1", "artwork/characters/enemy1_asset.jpg");
-    this.load.image("enemy2", "artwork/characters/enemy2_asset.png");
-    this.load.image("enemy3", "artwork/characters/enemy3_asset.png");
-  }
 
-  create() {
-    this.backgroundContainer = this.add.container();
-    this.foregroundContainer = this.add.container();
-    this.menuContainer = this.add.container();
+    this.EnemyNames.forEach((character, index) => {
+      this.load.image(
+        `enemy${index + 1}`,
+        `artwork/characters/${character}_asset.jpg`
+      );
+    });
 
-    this.backgroundContainer.add(
-      this.add.image(0, 0, "pvpBackground").setOrigin(0, 0)
-    );
+    this.load.start();
 
     this.selectedOptionIndex = 0;
 
@@ -92,33 +219,65 @@ class PVPMatchmakingScene extends Phaser.Scene {
       })
       .setInteractive();
 
+    this.backgroundContainer.add(
+      this.add.image(0, 0, "pvpBackground").setOrigin(0, 0)
+    );
+
     this.foregroundContainer.add(backButton);
 
     backButton.on("pointerdown", () => {
       this.backToMenu();
     });
 
-    // Adding player sprites to the foreground container
-    const player1 = this.add.sprite(150, 200, "player1");
-    const player2 = this.add.sprite(150, 350, "player2");
-    const player3 = this.add.sprite(150, 500, "player3");
-    this.foregroundContainer.add([player1, player2, player3]);
+    this.load.once("complete", () => {
+      // The new assets have been loaded, now you can use them
+      // Here, you can either refresh sprites, draw new elements, etc.
+      const player1 = this.add.sprite(150, 200, "player1");
+      const player2 = this.add.sprite(150, 350, "player2");
+      const player3 = this.add.sprite(150, 500, "player3");
+      this.foregroundContainer.add([player1, player2, player3]);
 
-    // Adding enemy sprites to the foreground container
-    const enemy1 = this.add.sprite(850, 200, "enemy1");
-    const enemy2 = this.add.sprite(850, 350, "enemy2");
-    const enemy3 = this.add.sprite(850, 500, "enemy3");
-    this.foregroundContainer.add([enemy1, enemy2, enemy3]);
+      // Adding enemy sprites to the foreground container
+      const enemy1 = this.add
+        .sprite(850, 200, "enemy1")
+        .setFlipX(true);
+      const enemy2 = this.add
+        .sprite(850, 350, "enemy2")
+        .setFlipX(true);
+      const enemy3 = this.add
+        .sprite(850, 500, "enemy3")
+        .setFlipX(true);
 
-    this.enemies = [enemy1, enemy2, enemy3]; // Store the enemy sprites
+      const leftAddressText = this.add.text(
+        60,
+        100,
+        this.leftPlayerAddress,
+        { fontFamily: "PixelArtFont", fill: "#fff", fontSize: "16px" }
+      );
+      const rightAddressText = this.add.text(
+        730,
+        100,
+        this.rightPlayerAddress,
+        { fontFamily: "PixelArtFont", fill: "#fff", fontSize: "16px" }
+      );
 
-    this.playerSprites = [player1, player2, player3];
-
-    this.createCombatMenuBackground();
-    this.createCombatMenuOptions();
-    this.createPlayerHPBars();
-    this.createEnemyHPBars();
-    this.highlightPlayerTurn();
+      this.foregroundContainer.add([
+        player1,
+        player2,
+        player3,
+        leftAddressText,
+        rightAddressText,
+      ]);
+      this.initializeEventListener();
+      this.initializeWinListener();
+      this.enemies = [enemy1, enemy2, enemy3]; // Store the enemy sprites
+      this.playerSprites = [player1, player2, player3];
+      this.createCombatMenuBackground();
+      this.createCombatMenuOptions();
+      this.createPlayerHPBars();
+      this.createEnemyHPBars();
+      this.highlightPlayerTurn();
+    });
 
     this.input.keyboard.on("keydown-UP", () => {
       if (this.inSpellMenu) {
@@ -199,19 +358,94 @@ class PVPMatchmakingScene extends Phaser.Scene {
 
         console.log(this.selectedSpellIndex);
       } else if (this.attacking) {
-        // Add your attack logic here, using this.selectedEnemyIndex to know which enemy was targeted
-
         if (this.spellCasted) {
           //do spell
 
+          console.log(
+            "current player character: ",
+            this.currentPlayerTurn
+          );
+
+          this.combatExecutionObject.Action[
+            this.currentPlayerTurn
+          ] = 1; //"CastSpell"...we dont have enums in js, and porting to typescript will take me a bit.;
+
+          this.combatExecutionObject.targetIds[
+            this.currentPlayerTurn
+          ] = this.selectedEnemyIndex;
+
+          this.combatExecutionObject.spellTypes[
+            this.currentPlayerTurn
+          ] = 0; //this.spells[this.selectedSpellIndex].name; //@TODO ENUM MAPPING TO SPELLTYPE..current default is fireball
+          //@TODO URGENT FIX AFTER TESTING!
+
           console.log(this.selectedSpellIndex);
           console.log(this.spells[this.selectedSpellIndex].name);
+          console.log(this.selectedEnemyIndex);
+
+          //@notice last character did his action, time to transmit tx:
+          if (this.currentPlayerTurn == 2) {
+            console.log("ready to execute on-chain combat exec:");
+            console.log(this.combatExecutionObject);
+
+            this.executeCombatOnchain();
+          }
+        } else if (this.meditating) {
+          console.log(
+            "current player character: ",
+            this.currentPlayerTurn
+          );
+
+          this.combatExecutionObject.Action[
+            this.currentPlayerTurn
+          ] = 2; //"Defend"; //@notice @TODO need to rename the enum..
+
+          this.combatExecutionObject.targetIds[
+            this.currentPlayerTurn
+          ] = this.selectedEnemyIndex; //@notice doesnt matter, since its a self-buff.
+
+          this.combatExecutionObject.spellTypes[
+            this.currentPlayerTurn
+          ] = 0; //"Fireball"; //@notice..yeah I forgot to add a non-spell option, it doesnt affect anything, but should be cleaned up.
+
+          console.log("meditating!");
+
+          //@notice last character did his action, time to transmit tx:
+          if (this.currentPlayerTurn == 2) {
+            console.log("ready to execute on-chain combat exec:");
+            console.log(this.combatExecutionObject);
+
+            this.executeCombatOnchain();
+          }
         } else {
-          //do attack
+          console.log(
+            "current player character: ",
+            this.currentPlayerTurn
+          );
+          this.combatExecutionObject.Action[
+            this.currentPlayerTurn
+          ] = 0; //"Attack"; //@notice @TODO need to rename the enum..
+
+          this.combatExecutionObject.targetIds[
+            this.currentPlayerTurn
+          ] = this.selectedEnemyIndex; //@notice doesnt matter, since its a self-buff.
+
+          this.combatExecutionObject.spellTypes[
+            this.currentPlayerTurn
+          ] = 0; //"Fireball"; //@notice..yeah I forgot to add a non-spell option, it doesnt affect anything, but should be cleaned up.
 
           console.log("attacking!");
+          console.log(this.selectedEnemyIndex);
+
+          //@notice last character did his action, time to transmit tx:
+          if (this.currentPlayerTurn == 2) {
+            console.log("ready to execute on-chain combat exec:");
+            console.log(this.combatExecutionObject);
+
+            this.executeCombatOnchain();
+          }
         }
-        console.log(this.selectedEnemyIndex);
+
         if (this.enemyHighlightGraphic) {
           this.enemyHighlightGraphic.destroy();
         }
@@ -240,6 +474,36 @@ class PVPMatchmakingScene extends Phaser.Scene {
     });
   }
 
+  async executeCombatOnchain() {
+    let tx = await this.combatContract.executeCombatTurnPlayer(
+      this.combatExecutionObject.Action,
+      this.combatExecutionObject.targetIds,
+      this.combatExecutionObject.spellTypes
+    );
+    console.log("combat exec tx:", tx);
+
+    if (this.enemyTurnText) {
+      // If the text already exists, destroy it first
+      this.enemyTurnText.destroy();
+    }
+
+    this.enemyTurnText = this.add.text(
+      375,
+      90,
+      "executing combat orders",
+      {
+        fontFamily: "PixelArtFont",
+        fill: "#fff",
+        fontSize: "36px",
+      }
+    );
+    this.foregroundContainer.add([this.enemyTurnText]);
+
+    await tx.wait();
+
+    console.log("combat exec tx receipt:", tx);
+  }
+
   handleCombatOption(option) {
     switch (option) {
       case "Attack":
@@ -250,6 +514,10 @@ class PVPMatchmakingScene extends Phaser.Scene {
         this.showSpellMenu();
         break;
 
+      case "Meditating":
+        this.meditating = true;
+        break;
+
       case "SpellsTargeting":
         console.log("entered SpellsTargeting");
         this.inSpellMenu = false;
@@ -257,22 +525,51 @@ class PVPMatchmakingScene extends Phaser.Scene {
         this.highlightEnemyHP(this.selectedEnemyIndex);
         break;
 
-      case "Concede":
-        console.log("conceded");
+      case "Leave":
+        console.log(
+          "match left(@TODO add surrender function to combatFacet)"
+        );
 
         this.backToMenu();
     }
   }
 
   nextPlayerTurn() {
-    // Increment currentPlayerTurn or reset to 0 if we're already at the last player
-    this.currentPlayerTurn =
-      (this.currentPlayerTurn + 1) % this.playerSprites.length;
+    console.log(this.turnState);
+
+    if (this.turnState === "player") {
+      // Increment currentPlayerTurn or reset to 0 if we're already at the last player
+      this.currentPlayerTurn =
+        (this.currentPlayerTurn + 1) % this.playerSprites.length;
+
+      // Transition to enemy turn if needed
+      if (this.currentPlayerTurn === 3) {
+        this.turnState = "enemy";
+        // No need to add "enemies turn!" text here, it should be handled in highlightPlayerTurn
+        this.highlightPlayerTurn(); // Moved this here to highlight as soon as turn switches
+        return;
+      }
+      if (this.currentPlayerTurn == null) {
+        this.currentPlayerTurn = 0;
+      }
+    } else if (this.turnState === "enemy") {
+      // Uncomment these to reset to player's turn
+      this.turnState = "player";
+      this.currentPlayerTurn = 0;
+    }
 
     // Now highlight the current player's turn
     this.highlightPlayerTurn();
     this.removePlayerHPBars();
     this.createPlayerHPBars();
+  }
+
+  extractTeamInfo(team) {
+    return {
+      names: team.map((member) => member.name),
+      hpValues: team.map((member) => member.health),
+      maxHpValues: team.map((member) => member.health),
+    };
   }
 
   showSpellMenu() {
@@ -294,6 +591,154 @@ class PVPMatchmakingScene extends Phaser.Scene {
     this.updateSelectedSpell();
   }
 
+  displaySuccessMessage() {
+    const successTextStyle = {
+      fontFamily: "PixelArtFont",
+      fontSize: "64px",
+      color: "#00FF00", // Green color for success
+      align: "center",
+      backgroundColor: "#000000",
+      padding: {
+        left: 10,
+        right: 10,
+        top: 10,
+        bottom: 10,
+      },
+    };
+
+    const successText = this.add
+      .text(
+        this.sys.game.config.width / 2,
+        this.sys.game.config.height - 500,
+        "You have won!",
+        successTextStyle
+      )
+      .setOrigin(0.5);
+
+    // Add a "Back to Menu" button below the success message
+    const backButtonStyle = {
+      font: "24px Courier",
+      fill: "#ffffff",
+      align: "center",
+      backgroundColor: "#000000",
+      padding: {
+        left: 10,
+        right: 10,
+        top: 10,
+        bottom: 10,
+      },
+    };
+
+    const backButton = this.add
+      .text(
+        this.sys.game.config.width / 2,
+        this.sys.game.config.height - 250,
+        "Back to Menu",
+        backButtonStyle
+      )
+      .setOrigin(0.5)
+      .setInteractive();
+
+    backButton.on("pointerdown", () => {
+      this.backToMenu();
+    });
+
+    backButton.on("pointerover", function () {
+      this.setFill("#ff8800");
+      this.scene.game.canvas.style.cursor = "pointer";
+    });
+
+    backButton.on("pointerout", function () {
+      this.setFill("#ffffff");
+      this.scene.game.canvas.style.cursor = "default";
+    });
+
+    // Optionally, you can add a timer to remove this text after a few seconds
+    this.time.delayedCall(
+      90000,
+      () => {
+        successText.destroy();
+        backButton.destroy();
+      },
+      [],
+      this
+    ); // This will remove the text and button after 5 seconds
+  }
+
+  displayLostMessage() {
+    const successTextStyle = {
+      fontFamily: "PixelArtFont",
+      fontSize: "64px",
+      color: "#00FF00", // Green color for success
+      align: "center",
+      backgroundColor: "#000000",
+      padding: {
+        left: 10,
+        right: 10,
+        top: 10,
+        bottom: 10,
+      },
+    };
+
+    const successText = this.add
+      .text(
+        this.sys.game.config.width / 2,
+        this.sys.game.config.height - 250,
+        "You have lost!",
+        successTextStyle
+      )
+      .setOrigin(0.5);
+
+    // Add a "Back to Menu" button below the success message
+    const backButtonStyle = {
+      font: "24px Courier",
+      fill: "#ffffff",
+      align: "center",
+      backgroundColor: "#000000",
+      padding: {
+        left: 10,
+        right: 10,
+        top: 10,
+        bottom: 10,
+      },
+    };
+
+    const backButton = this.add
+      .text(
+        this.sys.game.config.width / 2,
+        this.sys.game.config.height - 50,
+        "Back to Menu",
+        backButtonStyle
+      )
+      .setOrigin(0.5)
+      .setInteractive();
+
+    backButton.on("pointerdown", () => {
+      this.backToMenu();
+    });
+
+    backButton.on("pointerover", function () {
+      this.setFill("#ff8800");
+      this.scene.game.canvas.style.cursor = "pointer";
+    });
+
+    backButton.on("pointerout", function () {
+      this.setFill("#ffffff");
+      this.scene.game.canvas.style.cursor = "default";
+    });
+
+    // Optionally, you can add a timer to remove this text after a few seconds
+    this.time.delayedCall(
+      30000,
+      () => {
+        successText.destroy();
+        backButton.destroy();
+      },
+      [],
+      this
+    ); // This will remove the text and button after 5 seconds
+  }
+
   resetToMainCombatMenu() {
     // If currently in spell menu, exit it
     if (this.inSpellMenu) {
@@ -303,6 +748,11 @@ class PVPMatchmakingScene extends Phaser.Scene {
     // If currently attacking, reset attack state
     if (this.attacking) {
       this.attacking = false;
+    }
+
+    // If currently attacking, reset attack state
+    if (this.meditating) {
+      this.meditating = false;
     }
 
     // Remove any highlights or targeting graphics
@@ -429,6 +879,38 @@ class PVPMatchmakingScene extends Phaser.Scene {
   }
 
   highlightPlayerTurn() {
+    if (this.turnState === "enemy") {
+      if (this.enemyTurnText) {
+        // If the text already exists, destroy it first
+        this.enemyTurnText.destroy();
+      }
+
+      this.enemyTurnText = this.add.text(375, 80, "enemies turn!", {
+        fontFamily: "PixelArtFont",
+        fill: "#ff0000",
+        fontSize: "64px",
+      });
+      this.foregroundContainer.add([this.enemyTurnText]);
+
+      // No need to reset to player's turn here as this block is for the enemy's turn
+      return;
+    } else {
+      // This block handles the player's turn
+      if (this.enemyTurnText) {
+        // If the text exists, destroy it
+        this.enemyTurnText.destroy();
+        this.enemyTurnText = null; // Reset the reference
+      }
+
+      this.enemyTurnText = this.add.text(375, 80, "your turn!", {
+        fontFamily: "PixelArtFont",
+        fill: "#fff",
+        fontSize: "64px",
+      });
+      this.foregroundContainer.add([this.enemyTurnText]);
+    }
+
+    //@TODO enem turn logic
     const currentPlayerSprite =
       this.playerSprites[this.currentPlayerTurn];
 
@@ -479,17 +961,13 @@ class PVPMatchmakingScene extends Phaser.Scene {
     this.triangle.fillPath();
   }
 
-  createCombatMenuBackground() {
-    const combatMenuGraphics = this.add.graphics();
-    combatMenuGraphics.fillStyle(0x000033, 0.8);
-    combatMenuGraphics.fillRoundedRect(53, 603, 918, 144, 7);
-    combatMenuGraphics.fillStyle(0x000066, 1);
-    combatMenuGraphics.fillRoundedRect(50, 600, 924, 150, 7);
-    this.menuContainer.add(combatMenuGraphics);
-  }
-
   createCombatMenuOptions() {
-    this.combatMenuOptions = ["Attack", "Spells", "Items", "Concede"];
+    this.combatMenuOptions = [
+      "Attack",
+      "Spells",
+      "Meditate",
+      "Leave",
+    ];
     this.arrows = [];
     this.combatMenuOptions.forEach((option, index) => {
       const arrow = this.add
@@ -524,6 +1002,14 @@ class PVPMatchmakingScene extends Phaser.Scene {
   }
 
   createPlayerHPBars() {
+    // Destroy any existing text objects to avoid duplicates
+    if (this.playerTextObjects.length > 0) {
+      this.playerTextObjects.forEach((textObject) => {
+        textObject.destroy();
+      });
+      this.playerTextObjects = [];
+    }
+
     const players = ["player1", "player2", "player3"];
 
     players.forEach((player, index) => {
@@ -539,7 +1025,7 @@ class PVPMatchmakingScene extends Phaser.Scene {
         }
       );
 
-      const hpValue = `${this.hpValueParty[index]}/100`;
+      const hpValue = `${this.hpValueParty[index]}/${this.maxHpValueParty[index]}`;
       const hpText = this.add.text(430, 610 + index * 35, hpValue, {
         fontSize: "16px",
         fontFamily: "combatfont",
@@ -551,7 +1037,6 @@ class PVPMatchmakingScene extends Phaser.Scene {
       this.playerTextObjects.push(hpText);
     });
   }
-
   removePlayerHPBars() {
     if (this.playerTextObjects && this.playerTextObjects.length > 0) {
       this.playerTextObjects.forEach((textObj) => {
@@ -562,24 +1047,266 @@ class PVPMatchmakingScene extends Phaser.Scene {
     }
   }
 
+  initializeEventListener() {
+    this.combatContract.on(
+      "turnStarted",
+      async (playersTurn, matchId) => {
+        if (true) {
+          //(playersTurn == this.currPlayerAddr
+          console.log(
+            "turnstarted event was triggered and concerns us"
+          );
+          // Fetch updated contract data
+          this.fetchAndUpdateContractData();
+        }
+      }
+    );
+  }
+
+  initializeWinListener() {
+    this.combatContract.on("MatchResolved", async (winner, loser) => {
+      if (this.currPlayerAddr == winner) {
+        // Fetch updated contract data
+        console.log("you have won!");
+        this.displaySuccessMessage();
+      } else {
+        console.log("you lost!");
+        this.displayLostMessage();
+      }
+    });
+  }
+
+  updateGameState(playersTurn) {
+    if (playersTurn === this.currPlayerAddr) {
+      this.currentPlayerTurn = 0; // Assuming 0 is always the current player's index
+      this.turnState = "player";
+
+      this.removePlayerHPBars();
+      this.createPlayerHPBars();
+    } else {
+      this.currentPlayerTurn = 3; // 3 or any index that signifies it's the enemy's turn
+      this.turnState = "enemy";
+    }
+
+    this.createEnemyHPBars();
+
+    this.highlightPlayerTurn();
+  }
+
+  //@TODO fix
+
+  async fetchAndUpdateContractData() {
+    try {
+      const playerAddr = await this.signer.getAddress();
+      const matchData = await this.combatContract.getMatchForPlayer(
+        playerAddr
+      );
+
+      // ... (Your current logic to unpack matchData goes here)
+
+      const player1 = matchData[0];
+      const player2 = matchData[1];
+      this.player1 = player1;
+      this.player2 = player2;
+      const isResolved = matchData[matchData.length - 4];
+      const winner = matchData[matchData.length - 3];
+      this.currentTurn = matchData[matchData.length - 2];
+
+      //@TODO
+      if (playerAddr == this.currentTurn) {
+        this.currentPlayerTurn = 0; // 0 = player1, 1 = player2, 2 = player3
+        this.turnState = "player";
+      } else {
+        this.currentPlayerTurn = 3; //@TODO this basically means its the enemies turn
+        this.turnState = "enemy";
+      }
+
+      const lastActionTimestamp = matchData[matchData.length - 1];
+
+      const statFields = [
+        "name",
+        "health",
+        "ATK",
+        "DEX",
+        "INT",
+        "CONST",
+        "WIS",
+      ];
+
+      // Slice only the relevant parts of matchData for player stats
+      const planeWalkersStatsFlat = matchData.slice(
+        2,
+        matchData.length - 4
+      );
+
+      const player1Flat = matchData[2];
+      const player2Flat = matchData[3];
+
+      const player1Team = [{}, {}, {}];
+      const player2Team = [{}, {}, {}];
+
+      for (let i = 0; i < 3; i++) {
+        for (let j = 0; j < 7; j++) {
+          player1Team[i][statFields[j]] = player1Flat[i][j];
+          player2Team[i][statFields[j]] = player2Flat[i][j];
+        }
+      }
+
+      let hpDifferenceParty = []; // Moved to the top-level scope
+      let hpDifferenceEnemies = []; // Moved to the top-level scope
+
+      if (playerAddr === player1) {
+        const partyInfo = this.extractTeamInfo(player1Team);
+        const enemyInfo = this.extractTeamInfo(player2Team);
+
+        if (this.hpValueParty) {
+          hpDifferenceParty = this.hpValueParty.map(
+            (oldHp, index) => partyInfo.hpValues[index] - oldHp
+          );
+        }
+        if (this.hpValueEnemies) {
+          hpDifferenceEnemies = this.hpValueEnemies.map(
+            (oldHp, index) => enemyInfo.hpValues[index] - oldHp
+          );
+        }
+        console.log("MARKER!");
+        console.log(partyInfo);
+        console.log(enemyInfo);
+
+        // Update new HP values
+        this.names = partyInfo.names;
+        this.hpValueParty = partyInfo.hpValues;
+        this.EnemyNames = enemyInfo.names;
+        this.hpValueEnemies = enemyInfo.hpValues;
+      } else {
+        const partyInfo = this.extractTeamInfo(player2Team);
+        const enemyInfo = this.extractTeamInfo(player1Team);
+
+        console.log("hp values:");
+        console.log("party:", partyInfo);
+        console.log("enemies:", enemyInfo);
+
+        // Reuse the hpDifferenceParty and hpDifferenceEnemies declared at the top-level scope
+        if (this.hpValueParty) {
+          hpDifferenceParty = this.hpValueParty.map(
+            (oldHp, index) => partyInfo.hpValues[index] - oldHp
+          );
+        }
+
+        this.names = partyInfo.names;
+        this.hpValueParty = partyInfo.hpValues;
+
+        if (this.hpValueEnemies) {
+          hpDifferenceEnemies = this.hpValueEnemies.map(
+            (oldHp, index) => enemyInfo.hpValues[index] - oldHp
+          );
+        }
+
+        this.EnemyNames = enemyInfo.names;
+        this.hpValueEnemies = enemyInfo.hpValues;
+      }
+
+      if (hpDifferenceParty.length > 0) {
+        this.animateHpChange("party", hpDifferenceParty);
+      }
+      if (hpDifferenceEnemies.length > 0) {
+        this.animateHpChange("enemies", hpDifferenceEnemies);
+      }
+
+      //console.log("Formatted Match Data:", formattedMatch);
+
+      // Assume updateHPValues is a method that will update the HP values based on new contract data
+      // this.updateHPValues(matchData);
+
+      // Update the game state
+      this.updateGameState(this.currentTurn);
+    } catch (error) {
+      console.error(
+        "An error occurred while fetching the match data:",
+        error
+      );
+    }
+  }
+
+  animateHpChange(group, hpDifference) {
+    console.log(`Animating HP change for ${group}:`, hpDifference);
+
+    let sprites, x_offset, y_offset;
+
+    if (group === "party") {
+      sprites = this.playerSprites;
+      console.log("sprites", sprites);
+      x_offset = 20 + 50;
+      y_offset = -95 + 100;
+    } else {
+      sprites = this.enemies;
+      console.log("sprites", sprites);
+      x_offset = 20 + 50;
+      y_offset = -95 + 100;
+    }
+
+    for (let i = 0; i < hpDifference.length; i++) {
+      if (hpDifference[i]) {
+        const damageText = this.add.text(
+          sprites[i].x + x_offset,
+          sprites[i].y + y_offset,
+          `-${hpDifference[i]}`,
+          {
+            fontFamily: "PixelArtFont",
+            fill: "#990000",
+            fontSize: "46px",
+            stroke: "#fff",
+            strokeThickness: 2,
+          }
+        );
+
+        this.tweens.add({
+          targets: damageText,
+          y: sprites[i].y + y_offset - 50,
+          alpha: 0,
+          duration: 45000, //reduce after testing
+          ease: "Power2",
+          onComplete: function (tween, targets) {
+            damageText.destroy();
+          },
+        });
+      }
+    }
+  }
+
   createEnemyHPBars() {
     const enemies = ["enemy1", "enemy2", "enemy3"];
 
+    if (this.enemyTextObjects.length > 0) {
+      this.enemyTextObjects.forEach((textObject) => {
+        textObject.destroy();
+      });
+      this.enemyTextObjects = [];
+    }
+
     enemies.forEach((enemy, index) => {
       const enemyName = this.EnemyNames[index];
-      this.add.text(600, 610 + index * 35, enemyName, {
+      const nameText = this.add.text(
+        600,
+        610 + index * 35,
+        enemyName,
+        {
+          fontSize: "16px",
+          fontFamily: "combatfont",
+          color: "#FFFFFF",
+        }
+      );
+
+      // Assuming a sample HP value here; you should replace with actual HP
+      const hpValue = `${this.hpValueEnemies[index]}/${this.maxHpValueEnemies[index]}`;
+      const hpText = this.add.text(750, 610 + index * 35, hpValue, {
         fontSize: "16px",
         fontFamily: "combatfont",
         color: "#FFFFFF",
       });
 
-      // Assuming a sample HP value here; you should replace with actual HP
-      const hpValue = `${this.hpValueEnemies[index]}/100`;
-      this.add.text(750, 610 + index * 35, hpValue, {
-        fontSize: "16px",
-        fontFamily: "combatfont",
-        color: "#FFFFFF",
-      });
+      this.enemyTextObjects.push(nameText);
+      this.enemyTextObjects.push(hpText);
     });
   }
 
@@ -612,10 +1339,10 @@ class PVPMatchmakingScene extends Phaser.Scene {
   }
 
   backToMenu() {
+    this.scene.stop("CombatScene");
+    this.scene.remove("CombatScene");
+
     this.game.scene.start("GameScene");
-    this.scene.bringToTop("GameScene");
-    this.scene.stop("PVPMatchmakingScene");
-    this.scene.remove("PVPMatchmakingScene"); // Removing the scene
   }
 
   update() {
@@ -623,4 +1350,4 @@ class PVPMatchmakingScene extends Phaser.Scene {
   }
 }
 
-export default PVPMatchmakingScene;
+export default CombatScene;

@@ -1,0 +1,7 @@
+frontend/cross_chain_rpg/public/data/.env
+frontend/cross_chain_rpg/src/.env
+frontend/cross_chain_rpg/public/.env
+frontend/cross_chain_rpg/src/game/.env
+frontend/cross_chain_rpg/.env
+frontend/cross_chain_rpg/package-lock.json
+smart_contracts/.openzeppelin/unknown-1442.json

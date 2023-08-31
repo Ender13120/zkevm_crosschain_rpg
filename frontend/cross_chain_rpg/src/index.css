@@ -5,6 +5,7 @@ body {
     "Helvetica Neue", sans-serif;
   -webkit-font-smoothing: antialiased;
   -moz-osx-font-smoothing: grayscale;
+  background-color: #432247;
 }
 
 code {
@@ -15,4 +16,13 @@ code {
 @font-face {
   font-family: "PixelArtFont"; /* A name to be used later */
   src: url("./css_art/pixelartfont.ttf") format("truetype"); /* URL to font */
+}
+#game-container {
+  width: 1024px;
+  height: 768px;
+  position: absolute;
+  top: 50%;
+  left: 50%;
+  transform: translate(-50%, -50%);
+  background-color: #273b28;
 }

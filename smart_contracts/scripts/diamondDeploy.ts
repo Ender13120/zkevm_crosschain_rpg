@@ -139,6 +139,10 @@ export async function deployDiamond() {
   );
   await setAddresses.wait();
 
+  const setSpells = await adminFacet.setupSpells();
+
+  await setSpells.wait();
+
   return {
     diamondAddress: diamond.address,
     heroAddress: heroNFTContract.address,

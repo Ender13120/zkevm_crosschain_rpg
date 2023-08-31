@@ -1,18 +1,21 @@
 // createNewTeamScene.js
 import Phaser from "phaser";
+import { ethers } from "ethers";
 
 class CreateNewTeamScene extends Phaser.Scene {
   constructor(config, parent) {
     super(config);
     this.parent = parent;
+    this.contract = config.contract; // Access the contract
+    this.signer = config.signer; // Access the signer
     this.selectedMembers = [];
 
     this.characterNames = [
       "warrior",
-      "icemage",
-      "burglar",
       "paladin",
+      "icemage",
       "bard",
+      "burglar",
       "archer",
     ];
   }
@@ -30,6 +33,15 @@ class CreateNewTeamScene extends Phaser.Scene {
   }
 
   create() {
+    this.errorMessage = null;
+
+    console.log(this.contract); // For debugging purposes
+    console.log(this.signer); // For debugging purposes
+
+    if (this.parent && this.parent.state) {
+      const { provider, signer, contract } = this.parent.state;
+      this.contract = contract;
+    }
     this.add.image(0, 0, "background").setOrigin(0, 0);
 
     this.partySlotImages = [
@@ -212,14 +224,182 @@ class CreateNewTeamScene extends Phaser.Scene {
     this.updateEmbarkButtonInteractivity();
   }
 
-  startAdventure() {
+  async startAdventure() {
     if (
       this.selectedMembers.length === 3 &&
       !this.selectedMembers.includes(undefined)
     ) {
-      console.log("Starting Adventure with: ", this.selectedMembers);
-      // You can now transition to the game scene or whichever scene represents the adventure
-      // this.scene.start('YourAdventureScene');
+      try {
+        const heroChoices = this.selectedMembers.map(
+          (member) => this.characterNames.indexOf(member) + 1
+        );
+        console.log("heroChoices::", heroChoices);
+        const tx = await this.contract.selectAndCreateTeam(
+          heroChoices
+        );
+
+        this.displayLoading(
+          "waiting for transaction to be broadcasted"
+        );
+        await tx.wait();
+        this.hideLoading();
+        console.log(
+          "Team created successfully! Transaction Hash:",
+          tx.hash
+        );
+
+        this.displaySuccessMessage();
+
+        this.hideErrorMessage();
+      } catch (error) {
+        console.error("Error while creating team:", error);
+
+        if (error.message.includes("can only init team ")) {
+          this.displayErrorMessage(
+            "You can only create a team once!"
+          );
+        }
+      }
+    }
+  }
+
+  displayLoading(text) {
+    const loadingTextStyle = {
+      fontFamily: "PixelArtFont",
+      fontSize: "32px",
+      color: "#FFFF00",
+      align: "center",
+      backgroundColor: "#000000",
+      padding: {
+        left: 10,
+        right: 10,
+        top: 10,
+        bottom: 10,
+      },
+    };
+
+    if (!this.loadingText) {
+      this.loadingText = this.add
+        .text(
+          this.sys.game.config.width / 2,
+          this.sys.game.config.height - 150,
+          text,
+          loadingTextStyle
+        )
+        .setOrigin(0.5);
+    } else {
+      this.loadingText.setVisible(true);
+    }
+  }
+
+  hideLoading() {
+    if (this.loadingText) {
+      this.loadingText.setVisible(false);
+    }
+  }
+
+  displaySuccessMessage() {
+    const successTextStyle = {
+      fontFamily: "PixelArtFont",
+      fontSize: "26px",
+      color: "#00FF00",
+      align: "center",
+      backgroundColor: "#000000",
+      padding: {
+        left: 10,
+        right: 10,
+        top: 10,
+        bottom: 10,
+      },
+    };
+
+    const successText = this.add
+      .text(
+        this.sys.game.config.width / 2,
+        this.sys.game.config.height - 100,
+        "Team successfully created on the L1! You can go back to the menu",
+        successTextStyle
+      )
+      .setOrigin(0.5);
+
+    // Add a "Back to Menu" button below the success message
+    const backButtonStyle = {
+      font: "24px Courier",
+      fill: "#ffffff",
+      align: "center",
+      backgroundColor: "#000000",
+      padding: {
+        left: 10,
+        right: 10,
+        top: 10,
+        bottom: 10,
+      },
+    };
+
+    const backButton = this.add
+      .text(
+        this.sys.game.config.width / 2,
+        this.sys.game.config.height - 50,
+        "Back to Menu",
+        backButtonStyle
+      )
+      .setOrigin(0.5)
+      .setInteractive();
+
+    backButton.on("pointerdown", () => {
+      this.backToMenu();
+    });
+
+    backButton.on("pointerover", function () {
+      this.setFill("#ff8800");
+      this.scene.game.canvas.style.cursor = "pointer";
+    });
+
+    backButton.on("pointerout", function () {
+      this.setFill("#ffffff");
+      this.scene.game.canvas.style.cursor = "default";
+    });
+
+    this.time.delayedCall(
+      30000,
+      () => {
+        successText.destroy();
+        backButton.destroy();
+      },
+      [],
+      this
+    );
+  }
+
+  displayErrorMessage(message) {
+    // If an error message already exists, just update its text
+
+    if (this.errorMessage) {
+      this.errorMessage.setText(message);
+      this.errorMessage.setVisible(true);
+    } else {
+      // If it doesn't exist, create a new text object for the error
+      this.errorMessage = this.add
+        .text(this.game.config.width / 2, 50, message, {
+          font: "24px Courier",
+          fill: "#ff0000",
+          align: "center",
+          backgroundColor: "#000000",
+          padding: {
+            left: 10,
+            right: 10,
+            top: 10,
+            bottom: 10,
+          },
+        })
+        .setOrigin(0.5, 0);
+      this.errorMessage.setDepth(1000);
+    }
+  }
+
+  hideErrorMessage() {
+    if (this.errorMessage) {
+      this.errorMessage.setVisible(false);
     }
   }
 
